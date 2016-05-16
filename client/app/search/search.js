@@ -5,7 +5,7 @@ app.service('SearchService', function($http, $window) {
 
   // initialize empty tutor data array that will hold search results
   this.tutorData = [];
-  this.myData = {};
+  this.myData = null;
 
   this.getTutors = function(city, subjects) {
     // parsing the strings will be handled server-side
@@ -30,53 +30,61 @@ app.service('SearchService', function($http, $window) {
       return resp.data;
     });
   };
-
 });
 
 app.controller('SearchController', function ($scope, $http, SearchService, $location) {
 
-  SearchService.getProfile()
-    .then(function(user) {
-      SearchService.myData = user;
-  });
   // define search on scope
   $scope.search = function(city, subjects) {
     // call function from SearchService
-    SearchService.getTutors(city, subjects)
-      // upon success, assign returned tutors data to scope's tutorData
-      .then(function(tutors) {
-        // get logged in user's coordinates
-        var userCoords = [SearchService.myData.coordinates.lat,SearchService.myData.coordinates.lng].join(',');
-        // loop through tutors, run Google Distance Matrix api on each to get distance from user
-        var allTutorCoordinates = [];
-        for (var i = 0; i < tutors.length; i++) {
-          var tutor = tutors[i];
-          var tutorCoords = [tutor.coordinates.lat, tutor.coordinates.lng].join('%2C');
-          allTutorCoordinates.push(tutorCoords);
-        }
-        // get all distances of tutors from user
-        $http.get("https://maps.googleapis.com/maps/api/distancematrix/json?units=imperial&origins=" + userCoords + "&destinations=" + allTutorCoordinates.join('%7C') + "&key=AIzaSyAzoQMg9Pt-fERCwyXdhxwwGGNXlzty9Ng")
-          .success(function(data) {
-            for (var j = 0; j < tutors.length; j++) {
-              // assign appropriate distance to tutor
-              tutors[j].distance = data.rows[0].elements[j].distance.text;
+    SearchService.getProfile()
+
+      .then(function(user) {
+        SearchService.myData = user;
+        SearchService.getTutors(city, subjects)
+
+        // upon success, assign returned tutors data to scope's tutorData
+        .then(function(tutors) {
+          console.log(SearchService.myData, "====")
+          // get logged in user's coordinates
+          var userCoords = [37.7749, -122.4194].join(',');
+          if (SearchService.myData !== null) {
+            var userCoords = [SearchService.myData.coordinates.lat,SearchService.myData.coordinates.lng].join(',');
+            // loop through tutors, run Google Distance Matrix api on each to get distance from user
+            var allTutorCoordinates = [];
+            for (var i = 0; i < tutors.length; i++) {
+              var tutor = tutors[i];
+              var tutorCoords = [tutor.coordinates.lat, tutor.coordinates.lng].join('%2C');
+              allTutorCoordinates.push(tutorCoords);
             }
-            SearchService.tutorData = tutors;
-            console.log(SearchService.tutorData);
-            $location.path('/search');
-          });
+            // get all distances of tutors from user
+            $http.get("https://maps.googleapis.com/maps/api/distancematrix/json?units=imperial&origins=" + userCoords + "&destinations=" + allTutorCoordinates.join('%7C') + "&key=AIzaSyDvrSHps67YwiBew80UDfSQ0gepQ6wYvuI")
+              .success(function(data) {
+                console.log('distance matrix data is ', data)
+                for (var j = 0; j < tutors.length; j++) {
+                  // assign appropriate distance to tutor
+                  tutors[j].distance = data.rows[0].elements[j].distance.text;
+                }
+                SearchService.tutorData = tutors;
+                $location.path('/search');
+                console.log('====', SearchService.tutorData)
+              });
 
-        // how to wait until loop finishes before attempting this next
-      })
+            // how to wait until loop finishes before attempting this next
+          }
+        })
 
-      // on error, console log error
-      .catch(function(error) {
-        console.log('There was an error retrieving tutor data: ', error);
-      });
+        // on error, console log error
+        .catch(function(error) {
+          console.log('There was an error retrieving tutor data: ', error);
+        });
+    });
   };
 });
 
 app.controller('SearchResultsController', function ($scope, $timeout, uiGmapGoogleMapApi, SearchService) {
+  var counter = 1;
+
   $scope.tutor = {};
   $scope.tutor.likes = 0;
 
@@ -90,13 +98,14 @@ app.controller('SearchResultsController', function ($scope, $timeout, uiGmapGoog
     function() { return SearchService.tutorData; },
     function(newVal) {
       if (newVal.length !== 0) {
+
         var centerLatitude = 0;
         var centerLongitude = 0;
 
         uiGmapGoogleMapApi.then(function(maps) {
           // set bounds for map
           var myBounds = new maps.LatLngBounds();
-          var icon = new maps.MarkerImage("../assets/pencil.png",
+          var icon = new maps.MarkerImage("../assets/1px-transparent.png",
             new google.maps.Size(45, 45),
             new google.maps.Point(0, 0),
             new google.maps.Point(0, 45)
@@ -153,7 +162,7 @@ app.controller('SearchResultsController', function ($scope, $timeout, uiGmapGoog
               },
               icon: icon,
               options: {
-                labelContent : "Tutor: " + newVal[i].username,
+                labelContent : newVal[i].username,
                 labelAnchor: "0 0",
                 labelClass: 'labelClass',
                 labelInBackground: false
@@ -184,3 +193,4 @@ app.controller('SearchResultsController', function ($scope, $timeout, uiGmapGoog
     }
   );
 });
+
